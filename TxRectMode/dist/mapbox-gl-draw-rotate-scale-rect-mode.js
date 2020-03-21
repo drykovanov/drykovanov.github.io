@@ -21763,8 +21763,7 @@ function tx_rect_mode_demo_map_onload(event) {
   });
   const draw = new _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0___default.a({
     displayControlsDefault: false,
-    controls: {
-      trash: true
+    controls: {// trash: true
     },
     modes: Object.assign({
       tx_rect: _index__WEBPACK_IMPORTED_MODULE_2__["TxRectMode"]
