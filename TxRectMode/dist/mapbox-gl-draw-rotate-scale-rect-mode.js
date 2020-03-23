@@ -21488,12 +21488,12 @@ function extend() {
 /*!*********************!*\
   !*** ./src/demo.js ***!
   \*********************/
-/*! exports provided: tx_rect_mode_demo */
+/*! exports provided: TxRectModeDemo */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "tx_rect_mode_demo", function() { return tx_rect_mode_demo; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "TxRectModeDemo", function() { return TxRectModeDemo; });
 /* harmony import */ var _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @mapbox/mapbox-gl-draw */ "./node_modules/@mapbox/mapbox-gl-draw/index.js");
 /* harmony import */ var _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _turf_helpers__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @turf/helpers */ "./node_modules/@turf/helpers/index.js");
@@ -21502,40 +21502,246 @@ __webpack_require__.r(__webpack_exports__);
 // ----Demo----
 
 
+ // var demoParams = {
+//     mapCenter: [-73.93, 40.73],
+//     mapZoom: 9,
+//     imageUrl: 'nyc_1911_crop.jpg',
+//     imageWidth: 421,
+//     imageHeight: 671,
+// };
+
+function TxRectModeDemo(demoParams) {
+  this._demoParams = demoParams;
+  this._nextFeatureId = 1;
+}
+
+TxRectModeDemo.prototype.start = function () {
+  mapboxgl.accessToken = 'pk.eyJ1IjoiZHJ5a292YW5vdiIsImEiOiJjazM0OG9hYW4wenR4M2xtajVseW1qYjY3In0.YnbkeuaBiSaDOn7eYDAXsQ';
+  this._map = new mapboxgl.Map({
+    container: 'map',
+    // container id
+    style: 'mapbox://styles/mapbox/streets-v11',
+    // stylesheet location
+    center: this._demoParams.mapCenter,
+    zoom: this._demoParams.mapZoom // starting zoom
+    // fadeDuration: 0 //
+
+  });
+
+  this._map.on('load', this._onMapLoad.bind(this));
+};
+
+TxRectModeDemo.prototype._onMapLoad = function (event) {
+  this._map.loadImage('rotate/01.png', function (error, image) {
+    if (error) throw error;
+
+    this._map.addImage('rotate', image);
+  }.bind(this));
+
+  this._map.loadImage('scale/01.png', function (error, image) {
+    if (error) throw error;
+
+    this._map.addImage('scale', image);
+  }.bind(this));
+
+  this._draw = new _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0___default.a({
+    displayControlsDefault: false,
+    controls: {
+      polygon: true // trash: true
+
+    },
+    userProperties: true,
+    // pass user properties to mapbox-gl-draw internal features
+    modes: Object.assign({
+      tx_poly: _index__WEBPACK_IMPORTED_MODULE_2__["TxRectMode"]
+    }, _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0___default.a.modes),
+    styles: drawStyle
+  }); // XXX how to make overlay render under mapbox-gl-draw widgets?
+
+  this._createDemoOverlay();
+
+  this._map.addControl(this._draw, 'top-right');
+
+  this._createDemoFeatures();
+
+  this._map.on('data', this._onData.bind(this));
+
+  this._draw.changeMode('tx_poly', {
+    featureId: 1,
+    // required
+    rotatePivot: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Center,
+    // rotate around center
+    scaleCenter: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Opposite // scale around opposite vertex
+
+  });
+
+  this._map.on('draw.selectionchange', this._onDrawSelection.bind(this));
+};
+
+TxRectModeDemo.prototype._computeRect = function (center, size) {
+  const cUL = this._map.unproject([center[0] - size[0] / 2, center[1] - size[1] / 2]).toArray();
+
+  const cUR = this._map.unproject([center[0] + size[0] / 2, center[1] - size[1] / 2]).toArray();
+
+  const cLR = this._map.unproject([center[0] + size[0] / 2, center[1] + size[1] / 2]).toArray();
+
+  const cLL = this._map.unproject([center[0] - size[0] / 2, center[1] + size[1] / 2]).toArray();
+
+  return [cUL, cUR, cLR, cLL, cUL];
+};
+
+TxRectModeDemo.prototype._createDemoFeatures = function () {
+  if (this._overlayPoly) this._draw.add(this._overlayPoly);
+
+  const canvas = this._map.getCanvas(); // Get the device pixel ratio, falling back to 1.
+  // var dpr = window.devicePixelRatio || 1;
+  // Get the size of the canvas in CSS pixels.
+
+
+  var rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+
+  const cPoly = this._computeRect([1 * w / 5, h / 3], [100, 180]);
+
+  const poly = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_1__["polygon"])([cPoly]);
+  poly.id = this._nextFeatureId++;
+
+  this._draw.add(poly);
+};
+
+TxRectModeDemo.prototype._createDemoOverlay = function () {
+  var im_w = this._demoParams.imageWidth;
+  var im_h = this._demoParams.imageHeight;
+
+  const canvas = this._map.getCanvas(); // Get the device pixel ratio, falling back to 1.
+  // var dpr = window.devicePixelRatio || 1;
+  // Get the size of the canvas in CSS pixels.
+
+
+  var rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height; // console.log('canvas: ' + w + 'x' + h);
+
+  while (im_w >= 0.8 * w || im_h >= 0.8 * h) {
+    im_w = Math.round(0.8 * im_w);
+    im_h = Math.round(0.8 * im_h);
+  }
+
+  const cPoly = this._computeRect([w / 2, h / 2], [im_w, im_h]);
+
+  const cBox = cPoly.slice(0, 4);
+
+  this._map.addSource("test-overlay", {
+    "type": "image",
+    "url": this._demoParams.imageUrl,
+    "coordinates": cBox
+  });
+
+  this._map.addLayer({
+    "id": "test-overlay-layer",
+    "type": "raster",
+    "source": "test-overlay",
+    "paint": {
+      "raster-opacity": 0.90,
+      "raster-fade-duration": 0
+    }
+  });
+
+  const poly = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_1__["polygon"])([cPoly]);
+  poly.id = this._nextFeatureId++;
+  poly.properties.overlaySourceId = 'test-overlay';
+  poly.properties.type = 'overlay';
+  this._overlayPoly = poly;
+};
+
+TxRectModeDemo.prototype._onDrawSelection = function (e) {
+  const {
+    features,
+    points
+  } = e;
+
+  if (features.length <= 0) {
+    return;
+  }
+
+  var feature = features[0];
+
+  if (feature.geometry.type == 'Polygon' && feature.id) {
+    this._draw.changeMode('tx_poly', {
+      featureId: feature.id,
+      // required
+      rotatePivot: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Center,
+      // rotate around center
+      scaleCenter: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Opposite // scale around opposite vertex
+
+    });
+  }
+};
+
+TxRectModeDemo.prototype._onData = function (e) {
+  if (e.sourceId && e.sourceId.startsWith('mapbox-gl-draw-')) {
+    // console.log(e.sourceId);
+    if (e.type && e.type == 'data' && e.source.data // && e.sourceDataType && e.sourceDataType == 'content'
+    && e.sourceDataType == undefined && e.isSourceLoaded) {
+      // var source = this.map.getSource(e.sourceId);
+      //var geojson = source._data;
+      var geojson = e.source.data;
+
+      if (geojson && geojson.features && geojson.features.length > 0 && geojson.features[0].properties && geojson.features[0].properties.user_overlaySourceId) {
+        this._drawUpdateOverlayByFeature(geojson.features[0]);
+      }
+    }
+  }
+};
+
+TxRectModeDemo.prototype._drawUpdateOverlayByFeature = function (feature) {
+  var coordinates = feature.geometry.coordinates[0].slice(0, 4);
+  var overlaySourceId = feature.properties.user_overlaySourceId;
+
+  this._map.getSource(overlaySourceId).setCoordinates(coordinates);
+};
 
 var drawStyle = [{
   'id': 'gl-draw-polygon-fill-inactive',
   'type': 'fill',
-  'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+  'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'user_type', 'overlay'], ['!=', 'mode', 'static']],
   'paint': {
     'fill-color': '#3bb2d0',
     'fill-outline-color': '#3bb2d0',
-    'fill-opacity': 0.0
+    'fill-opacity': 0.7
   }
 }, {
   'id': 'gl-draw-polygon-fill-active',
   'type': 'fill',
-  'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+  'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['!=', 'user_type', 'overlay']],
   'paint': {
     'fill-color': '#fbb03b',
     'fill-outline-color': '#fbb03b',
-    'fill-opacity': 0.0
+    'fill-opacity': 0.7
   }
-}, // {
-//     'id': 'gl-draw-polygon-midpoint',
-//     'type': 'circle',
-//     'filter': ['all',
-//         ['==', '$type', 'Point'],
-//         ['==', 'meta', 'midpoint']],
-//     'paint': {
-//         'circle-radius': 3,
-//         'circle-color': '#fbb03b'
-//     }
-// },
-{
+}, {
+  'id': 'gl-draw-overlay-polygon-fill-inactive',
+  'type': 'fill',
+  'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['==', 'user_type', 'overlay'], ['!=', 'mode', 'static']],
+  'paint': {
+    'fill-color': '#3bb2d0',
+    'fill-outline-color': '#3bb2d0',
+    'fill-opacity': 0.05
+  }
+}, {
+  'id': 'gl-draw-overlay-polygon-fill-active',
+  'type': 'fill',
+  'filter': ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon'], ['==', 'user_type', 'overlay']],
+  'paint': {
+    'fill-color': '#fbb03b',
+    'fill-outline-color': '#fbb03b',
+    'fill-opacity': 0.05
+  }
+}, {
   'id': 'gl-draw-polygon-stroke-inactive',
   'type': 'line',
-  'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'mode', 'static']],
+  'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon'], ['!=', 'user_type', 'overlay'], ['!=', 'mode', 'static']],
   'layout': {
     'line-cap': 'round',
     'line-join': 'round'
@@ -21557,7 +21763,18 @@ var drawStyle = [{
     'line-dasharray': [0.2, 2],
     'line-width': 2
   }
-}, {
+}, // {
+//     'id': 'gl-draw-polygon-midpoint',
+//     'type': 'circle',
+//     'filter': ['all',
+//         ['==', '$type', 'Point'],
+//         ['==', 'meta', 'midpoint']],
+//     'paint': {
+//         'circle-radius': 3,
+//         'circle-color': '#fbb03b'
+//     }
+// },
+{
   'id': 'gl-draw-line-inactive',
   'type': 'line',
   'filter': ['all', ['==', 'active', 'false'], ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
@@ -21751,124 +21968,6 @@ var drawStyle = [{
   }
 }];
 
-function tx_rect_mode_demo_map_onload(event) {
-  var map = event.target;
-  map.loadImage('rotate/01.png', function (error, image) {
-    if (error) throw error;
-    map.addImage('rotate', image);
-  });
-  map.loadImage('scale/01.png', function (error, image) {
-    if (error) throw error;
-    map.addImage('scale', image);
-  });
-  const draw = new _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0___default.a({
-    displayControlsDefault: false,
-    controls: {// trash: true
-    },
-    modes: Object.assign({
-      tx_rect: _index__WEBPACK_IMPORTED_MODULE_2__["TxRectMode"]
-    }, _mapbox_mapbox_gl_draw__WEBPACK_IMPORTED_MODULE_0___default.a.modes),
-    styles: drawStyle
-  }); // nyc_1911.jpg - 468x760
-
-  var im_w = 421;
-  var im_h = 671; // var im_w = 751;
-  // var im_h = 345;
-
-  const canvas = map.getCanvas(); // Get the device pixel ratio, falling back to 1.
-
-  var dpr = window.devicePixelRatio || 1; // Get the size of the canvas in CSS pixels.
-
-  var rect = canvas.getBoundingClientRect();
-  const w = rect.width;
-  const h = rect.height; // console.log('canvas: ' + w + 'x' + h);
-
-  while (im_w >= 0.8 * w || im_h >= 0.8 * h) {
-    im_w = Math.round(0.8 * im_w);
-    im_h = Math.round(0.8 * im_h);
-  }
-
-  const cUL = map.unproject([w / 2 - im_w / 2, h / 2 - im_h / 2]).toArray();
-  const cUR = map.unproject([w / 2 + im_w / 2, h / 2 - im_h / 2]).toArray();
-  const cLR = map.unproject([w / 2 + im_w / 2, h / 2 + im_h / 2]).toArray();
-  const cLL = map.unproject([w / 2 - im_w / 2, h / 2 + im_h / 2]).toArray();
-  const coordinates = [cUL, cUR, cLR, cLL, cUL];
-  const poly = Object(_turf_helpers__WEBPACK_IMPORTED_MODULE_1__["polygon"])([coordinates]);
-  poly.id = 1;
-  map.addSource("test-overlay", {
-    "type": "image",
-    "url": 'nyc_1911_crop.jpg',
-    // "url": '03_image_bin_masked.png',
-    "coordinates": [cUL, cUR, cLR, cLL]
-  });
-  map.addLayer({
-    "id": "test-overlay-layer",
-    "type": "raster",
-    "source": "test-overlay",
-    "paint": {
-      "raster-opacity": 0.90,
-      "raster-fade-duration": 0
-    }
-  });
-  map.addControl(draw, 'top-right');
-  map.on('data', onData.bind({
-    draw: draw,
-    map: map
-  }));
-  draw.add(poly);
-  draw.changeMode('tx_rect', {
-    featureId: poly.id // required
-    // rotatePivot: TxCenter.Opposite,   // rotate around center
-    // scaleCenter: TxCenter.Opposite, // scale around opposite vertex
-
-  });
-} // draw.update is out of sync with actual drawn polygon
-// map.on('draw.update', drawUpdateOverlay.bind({
-//     map: map
-// }));
-// map.on('draw.render', drawUpdateOverlayByFeature.bind({map: map, feature: polygon, draw: draw}));
-// map.on('data', drawUpdateOverlayByFeature.bind({map: map, feature: polygon, draw: draw}));
-
-
-function onData(e) {
-  if (e.sourceId && e.sourceId.startsWith('mapbox-gl-draw-')) {
-    // console.log(e.sourceId);
-    if (e.type && e.type == 'data' && e.source.data // && e.sourceDataType && e.sourceDataType == 'content'
-    && e.sourceDataType == undefined && e.isSourceLoaded) {
-      // var source = this.map.getSource(e.sourceId);
-      //var geojson = source._data;
-      var geojson = e.source.data;
-
-      if (geojson && geojson.features && geojson.features.length > 0) {
-        drawUpdateOverlayByFeature(geojson.features[0], this.map);
-      }
-    }
-  }
-}
-
-function drawUpdateOverlayByFeature(feature, map) {
-  var coordinates = feature.geometry.coordinates[0].slice(0, 4);
-  map.getSource("test-overlay").setCoordinates(coordinates);
-}
-
-function tx_rect_mode_demo() {
-  mapboxgl.accessToken = 'pk.eyJ1IjoiZHJ5a292YW5vdiIsImEiOiJjazM0OG9hYW4wenR4M2xtajVseW1qYjY3In0.YnbkeuaBiSaDOn7eYDAXsQ';
-  var map = new mapboxgl.Map({
-    container: 'map',
-    // container id
-    style: 'mapbox://styles/mapbox/streets-v11',
-    // stylesheet location
-    center: [-73.93, 40.73],
-    // starting position [lng, lat]
-    zoom: 9 // starting zoom
-    // center: [30.387850, 59.994247],
-    // zoom: 19, // starting zoom
-    // fadeDuration: 0 //
-
-  });
-  map.on('load', tx_rect_mode_demo_map_onload);
-}
-
 /***/ }),
 
 /***/ "./src/index.js":
@@ -21942,6 +22041,8 @@ function parseTxCenter(value, defaultTxCenter = TxCenter.Center) {
         featureId: ...,
         rotatePivot: default 'center' or 'opposite',
         scaleCenter: default 'center' or 'opposite',
+
+        canSelectFeatures: default true,    // can exit to simple_select mode
     }
  */
 
@@ -21951,15 +22052,15 @@ TxRectMode.onSetup = function (opts) {
   const feature = this.getFeature(featureId);
 
   if (!feature) {
-    throw new Error('You must provide a featureId to enter direct_select mode');
+    throw new Error('You must provide a featureId to enter tx_poly mode');
   }
 
   if (feature.type != _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.geojsonTypes.POLYGON) {
-    throw new TypeError('tx_rect mode doesn\'t handle only rectangles');
+    throw new TypeError('tx_poly mode can only handle polygons');
   }
 
-  if (feature.coordinates === undefined || feature.coordinates.length != 1 || feature.coordinates[0].length != 4) {
-    throw new TypeError('tx_rect mode doesn\'t handle only rectangles');
+  if (feature.coordinates === undefined || feature.coordinates.length != 1 || feature.coordinates[0].length <= 2) {
+    throw new TypeError('tx_poly mode can only handle polygons');
   }
 
   const state = {
@@ -21967,6 +22068,7 @@ TxRectMode.onSetup = function (opts) {
     feature,
     rotatePivot: parseTxCenter(opts.rotatePivot, TxCenter.Center),
     scaleCenter: parseTxCenter(opts.scaleCenter, TxCenter.Center),
+    canSelectFeatures: opts.canSelectFeatures ? opts.canSelectFeatures : true,
     dragMoveLocation: opts.startPos || null,
     dragMoving: false,
     canDragMove: false,
@@ -22371,10 +22473,14 @@ TxRectMode.onClick = function (state, e) {
   this.stopDragging(state);
 };
 
-TxRectMode.clickNoTarget = function () {// this.changeMode(Constants.modes.SIMPLE_SELECT);
+TxRectMode.clickNoTarget = function (state, e) {
+  if (state.canSelectFeatures) this.changeMode(_mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.modes.SIMPLE_SELECT);
 };
 
-TxRectMode.clickInactive = function () {// this.changeMode(Constants.modes.SIMPLE_SELECT);
+TxRectMode.clickInactive = function (state, e) {
+  if (state.canSelectFeatures) this.changeMode(_mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.modes.SIMPLE_SELECT, {
+    featureIds: [e.featureTarget.properties.id]
+  });
 };
 
 /***/ }),
