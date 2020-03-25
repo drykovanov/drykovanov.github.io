@@ -21566,16 +21566,44 @@ TxRectModeDemo.prototype._onMapLoad = function (event) {
 
   this._map.on('data', this._onData.bind(this));
 
+  this._map.on('draw.selectionchange', this._onDrawSelection.bind(this));
+
+  this._map.on('click', this._onClick.bind(this));
+
+  this._map.on('touchstart', this._onClick.bind(this));
+
+  this._txEdit(1);
+};
+
+TxRectModeDemo.prototype._onClick = function (e) {
+  var features = this._map.queryRenderedFeatures(e.point);
+
+  if (features.length > 0) {
+    var feature = features[0].toJSON();
+
+    if (feature.geometry.type == 'Polygon' && feature.properties.id) {
+      this._txEdit(feature.properties.id);
+    }
+  }
+};
+
+TxRectModeDemo.prototype._txEdit = function (featureId) {
   this._draw.changeMode('tx_poly', {
-    featureId: 1,
+    featureId: featureId,
     // required
+    canTrash: false,
+    canScale: true,
+    canRotate: true,
+    // only rotation enabled
+    singleRotationPoint: true,
+    rotationPointRadius: 1.2,
+    // extend rotation point outside polygon
     rotatePivot: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Center,
     // rotate around center
-    scaleCenter: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Opposite // scale around opposite vertex
-
+    scaleCenter: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Opposite,
+    // scale around opposite vertex
+    canSelectFeatures: true
   });
-
-  this._map.on('draw.selectionchange', this._onDrawSelection.bind(this));
 };
 
 TxRectModeDemo.prototype._computeRect = function (center, size) {
@@ -21668,14 +21696,7 @@ TxRectModeDemo.prototype._onDrawSelection = function (e) {
   var feature = features[0];
 
   if (feature.geometry.type == 'Polygon' && feature.id) {
-    this._draw.changeMode('tx_poly', {
-      featureId: feature.id,
-      // required
-      rotatePivot: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Center,
-      // rotate around center
-      scaleCenter: _index__WEBPACK_IMPORTED_MODULE_2__["TxCenter"].Opposite // scale around opposite vertex
-
-    });
+    this._txEdit(feature.id);
   }
 };
 
@@ -21727,7 +21748,7 @@ var drawStyle = [{
   'paint': {
     'fill-color': '#3bb2d0',
     'fill-outline-color': '#3bb2d0',
-    'fill-opacity': 0.05
+    'fill-opacity': 0.01
   }
 }, {
   'id': 'gl-draw-overlay-polygon-fill-active',
@@ -21736,7 +21757,7 @@ var drawStyle = [{
   'paint': {
     'fill-color': '#fbb03b',
     'fill-outline-color': '#fbb03b',
-    'fill-opacity': 0.05
+    'fill-opacity': 0.01
   }
 }, {
   'id': 'gl-draw-polygon-stroke-inactive',
@@ -21818,7 +21839,7 @@ var drawStyle = [{
 }, {
   'id': 'gl-draw-polygon-and-line-vertex-scale-icon',
   'type': 'symbol',
-  'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+  'filter': ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static'], ['has', 'heading']],
   'layout': {
     'icon-image': 'scale',
     'icon-allow-overlap': true,
@@ -22039,6 +22060,10 @@ function parseTxCenter(value, defaultTxCenter = TxCenter.Center) {
 /*
     opts = {
         featureId: ...,
+
+        canScale: default true,
+        canRotate: default true,
+
         rotatePivot: default 'center' or 'opposite',
         scaleCenter: default 'center' or 'opposite',
 
@@ -22048,11 +22073,11 @@ function parseTxCenter(value, defaultTxCenter = TxCenter.Center) {
 
 
 TxRectMode.onSetup = function (opts) {
-  const featureId = opts.featureId;
+  const featureId = opts.featureIds && Array.isArray(opts.featureIds) && opts.featureIds.length > 0 ? opts.featureIds[0] : opts.featureId;
   const feature = this.getFeature(featureId);
 
   if (!feature) {
-    throw new Error('You must provide a featureId to enter tx_poly mode');
+    throw new Error('You must provide a valid featureId to enter tx_poly mode');
   }
 
   if (feature.type != _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.geojsonTypes.POLYGON) {
@@ -22066,19 +22091,32 @@ TxRectMode.onSetup = function (opts) {
   const state = {
     featureId,
     feature,
+    canTrash: opts.canTrash != undefined ? opts.canTrash : true,
+    canScale: opts.canScale != undefined ? opts.canScale : true,
+    canRotate: opts.canRotate != undefined ? opts.canRotate : true,
+    singleRotationPoint: opts.singleRotationPoint != undefined ? opts.singleRotationPoint : false,
+    rotationPointRadius: opts.rotationPointRadius != undefined ? opts.rotationPointRadius : 1.0,
     rotatePivot: parseTxCenter(opts.rotatePivot, TxCenter.Center),
     scaleCenter: parseTxCenter(opts.scaleCenter, TxCenter.Center),
-    canSelectFeatures: opts.canSelectFeatures ? opts.canSelectFeatures : true,
+    canSelectFeatures: opts.canSelectFeatures != undefined ? opts.canSelectFeatures : true,
+    // selectedFeatureMode: opts.selectedFeatureMode != undefined ? opts.selectedFeatureMode : 'simple_select',
     dragMoveLocation: opts.startPos || null,
     dragMoving: false,
     canDragMove: false,
     selectedCoordPaths: opts.coordPath ? [opts.coordPath] : []
   };
+
+  if (!(state.canRotate || state.canScale)) {
+    console.warn('Non of canScale or canRotate is true');
+  }
+
   this.setSelectedCoordinates(this.pathsToCoordinates(featureId, state.selectedCoordPaths));
   this.setSelected(featureId);
   _mapbox_mapbox_gl_draw_src_lib_double_click_zoom__WEBPACK_IMPORTED_MODULE_2___default.a.disable(this);
   this.setActionableState({
-    trash: true
+    combineFeatures: false,
+    uncombineFeatures: false,
+    trash: state.canTrash
   });
   return state;
 };
@@ -22092,10 +22130,16 @@ TxRectMode.toDisplayFeatures = function (state, geojson, push) {
       midpoints: false,
       selectedPaths: state.selectedCoordPaths
     });
-    this.computeBisectrix(suppPoints);
-    var rotPoints = this.createRotationPoints(state, geojson, suppPoints);
-    suppPoints.forEach(push);
-    rotPoints.forEach(push);
+
+    if (state.canScale) {
+      this.computeBisectrix(suppPoints);
+      suppPoints.forEach(push);
+    }
+
+    if (state.canRotate) {
+      var rotPoints = this.createRotationPoints(state, geojson, suppPoints);
+      rotPoints.forEach(push);
+    }
   } else {
     geojson.properties.active = _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.activeStates.INACTIVE;
     push(geojson);
@@ -22105,7 +22149,7 @@ TxRectMode.toDisplayFeatures = function (state, geojson, push) {
   this.setActionableState({
     combineFeatures: false,
     uncombineFeatures: false,
-    trash: false
+    trash: state.canTrash
   }); // this.fireUpdate();
 };
 
@@ -22141,6 +22185,30 @@ TxRectMode.computeBisectrix = function (points) {
   }
 };
 
+TxRectMode._createRotationPoint = function (rotationWidgets, featureId, v1, v2, rotCenter, radiusScale) {
+  var cR0 = Object(_turf_midpoint__WEBPACK_IMPORTED_MODULE_9__["default"])(v1, v2).geometry.coordinates;
+  var heading = _turf_bearing__WEBPACK_IMPORTED_MODULE_7___default()(rotCenter, cR0);
+  var distance0 = _turf_distance__WEBPACK_IMPORTED_MODULE_10___default()(rotCenter, cR0);
+  var distance1 = radiusScale * distance0; // TODO depends on map scale
+
+  var cR1 = _turf_destination__WEBPACK_IMPORTED_MODULE_11___default()(rotCenter, distance1, heading, {}).geometry.coordinates;
+  rotationWidgets.push({
+    type: _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.geojsonTypes.FEATURE,
+    properties: {
+      meta: _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.meta.MIDPOINT,
+      parent: featureId,
+      lng: cR1[0],
+      lat: cR1[1],
+      coord_path: v1.properties.coord_path,
+      heading: heading
+    },
+    geometry: {
+      type: _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.geojsonTypes.POINT,
+      coordinates: cR1
+    }
+  });
+};
+
 TxRectMode.createRotationPoints = function (state, geojson, suppPoints) {
   const {
     type,
@@ -22156,48 +22224,20 @@ TxRectMode.createRotationPoints = function (state, geojson, suppPoints) {
   var corners = suppPoints.slice(0);
   corners[corners.length] = corners[0];
   var v1 = null;
-  var center0 = this.computeRotationCenter(state, geojson);
-  corners.forEach(v2 => {
-    if (v1 != null) {
-      var cR0 = Object(_turf_midpoint__WEBPACK_IMPORTED_MODULE_9__["default"])(v1, v2).geometry.coordinates;
-      var heading = _turf_bearing__WEBPACK_IMPORTED_MODULE_7___default()(center0, cR0);
-      var distance0 = _turf_distance__WEBPACK_IMPORTED_MODULE_10___default()(center0, cR0);
-      var distance1 = 1.0 * distance0; // TODO paramter, TODO depends on map scale
+  var rotCenter = this.computeRotationCenter(state, geojson);
 
-      var cR1 = _turf_destination__WEBPACK_IMPORTED_MODULE_11___default()(center0, distance0, heading, {}).geometry.coordinates;
-      rotationWidgets.push({
-        type: _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.geojsonTypes.FEATURE,
-        properties: {
-          meta: _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.meta.MIDPOINT,
-          parent: featureId,
-          lng: cR1[0],
-          lat: cR1[1],
-          coord_path: v1.properties.coord_path,
-          heading: heading
-        },
-        geometry: {
-          type: _mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.geojsonTypes.POINT,
-          coordinates: cR1
-        }
-      }); // rotationWidgets.push({
-      //         type: Constants.geojsonTypes.FEATURE,
-      //         properties: {
-      //             meta: Constants.meta.MIDPOINT,
-      //             parent: featureId,
-      //             // lng: cR1[0],
-      //             // lat: cR1[1],
-      //             coord_path: v1.properties.coord_path
-      //         },
-      //         geometry: {
-      //             type: Constants.geojsonTypes.LINE_STRING,
-      //             coordinates: [cR0, cR1]
-      //         }
-      //     }
-      // );
-    }
+  if (state.singleRotationPoint) {
+    this._createRotationPoint(rotationWidgets, featureId, corners[0], corners[1], rotCenter, state.rotationPointRadius);
+  } else {
+    corners.forEach(v2 => {
+      if (v1 != null) {
+        this._createRotationPoint(rotationWidgets, featureId, v1, v2, rotCenter, state.rotationPointRadius);
+      }
 
-    v1 = v2;
-  });
+      v1 = v2;
+    });
+  }
+
   return rotationWidgets;
 };
 
@@ -22481,6 +22521,11 @@ TxRectMode.clickInactive = function (state, e) {
   if (state.canSelectFeatures) this.changeMode(_mapbox_mapbox_gl_draw_src_constants__WEBPACK_IMPORTED_MODULE_1___default.a.modes.SIMPLE_SELECT, {
     featureIds: [e.featureTarget.properties.id]
   });
+};
+
+TxRectMode.onTrash = function () {
+  // TODO check state.canTrash
+  this.deleteFeature(this.getSelectedIds()); // this.fireActionable();
 };
 
 /***/ }),
